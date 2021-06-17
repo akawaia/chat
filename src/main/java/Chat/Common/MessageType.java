@@ -1,0 +1,16 @@
+package Chat.Common;
+
+public enum MessageType {
+    PUBLIC,
+    PRIVATE,
+    ERROR,
+    AUTH_CONFIRM,
+    SEND_AUTH,
+    CLIENT_LIST,
+    CHANGE_USERNAME,
+    CHANGE_USERNAME_CONFIRM,
+    CHANGE_PASSWORD,
+    PASSWORD_CONFIRM,
+    REGISTRATION,
+    REG_CONFIRM
+}
