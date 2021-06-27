@@ -1,6 +1,7 @@
 package Chat.Client.ControllerServices;
 
 import Chat.Common.ChatMessage;
+import Chat.Common.PropClass;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.layout.VBox;
@@ -13,6 +14,7 @@ import java.util.List;
 public class ChatHistory {
 
     private static final Logger LOGGER = (Logger) LogManager.getLogger(ChatHistory.class);
+    private int sizeChatHistory = Integer.parseInt(PropClass.properties("sizeChatHistory"));
 
     public void saveChatHistory(List<Label> chatHistoryList, String currentName, ChatMessage message) {
         ChatMessage chatMessage = new ChatMessage();
@@ -45,8 +47,8 @@ public class ChatHistory {
             try (BufferedReader bufferedReader = new BufferedReader(new FileReader(fileName))) {
                 String textForAppend;
                 while ((textForAppend = bufferedReader.readLine()) != null) arrayList.add(textForAppend);
-                if (arrayList.size() > 100) {
-                    for (int i = arrayList.size() - 100; i < arrayList.size(); i++) {
+                if (arrayList.size() > sizeChatHistory) {
+                    for (int i = arrayList.size() - sizeChatHistory; i < arrayList.size(); i++) {
                         workWithJson(currentName, chatHistoryList, arrayList, i, chatBox);
                     }
                 } else {
@@ -67,7 +69,7 @@ public class ChatHistory {
 
         if (from.equals(currentName)) chatHistoryList.get(i).setAlignment(Pos.TOP_RIGHT);
         else chatHistoryList.get(i).setAlignment(Pos.TOP_LEFT);
-        chatHistoryList.get(i).setPrefWidth(598);
+        chatHistoryList.get(i).setPrefWidth(Double.parseDouble(PropClass.properties("widthLabel")));
         chatHistoryList.get(i).setWrapText(true);
         chatBox.getChildren().add(chatHistoryList.get(i));
     }

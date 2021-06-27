@@ -8,7 +8,7 @@ import javafx.stage.Stage;
 
 
 public class AppClient extends Application {
-    public static Stage stage1;
+
 
     public static void main(String[] args) {
         launch(args);
@@ -19,12 +19,13 @@ public class AppClient extends Application {
         FXMLLoader loader = new FXMLLoader();
         loader.setLocation(getClass().getResource("/scene.fxml"));
         Parent root = loader.load();
+        ChatController.setStage(stage);
+
         stage.setResizable(false);
         Scene scene = new Scene(root);
 //        scene.getStylesheets().add((getClass().getResource("/style.css")).toExternalForm()); //Подключение css файла
         stage.setScene(scene);
         stage.setResizable(false);
-        stage1 = stage;
         stage.show();
     }
 }

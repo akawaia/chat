@@ -4,8 +4,10 @@ import Chat.Client.ControllerServices.ChatHistory;
 import Chat.Client.ControllerServices.Interfaces.ChatService;
 import Chat.Client.ControllerServices.ChatServiceImpl;
 import Chat.Client.ControllerServices.Interfaces.WhatTheMessage;
+import Chat.Client.ControllerServices.MessageHandler;
 import Chat.Common.ChatMessage;
 import Chat.Common.MessageType;
+import Chat.Common.PropClass;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
@@ -14,6 +16,9 @@ import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.Logger;
 
 import java.io.File;
 import java.net.URL;
@@ -52,20 +57,24 @@ public class ChatController implements Initializable, WhatTheMessage {
     public TextField loginChangeUsername;
     public PasswordField passwordChangeUsername;
 
-    private final int PORT = 3048;
-    private final String host = "localhost";
+
     private ChatService chatService;
-    private final ChatHistory chatHistory = new ChatHistory();
+    private MessageHandler messageHandler;
+    private final ChatHistory CHAT_HISTORY = new ChatHistory();
     private String currentName;
     private List<Label> chatHistoryList = new ArrayList<>();
     private int index = 0;
-
+    private static Stage stage;
+    private static final Logger LOGGER = (Logger) LogManager.getLogger(ChatController.class);
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        LOGGER.info("Success start client");
         scrollPaneChat.setStyle("-fx-background-color:transparent;");
         scrollPaneUsers.setStyle("-fx-background-color:transparent;");
-        this.chatService = new ChatServiceImpl(host, PORT, this);
+        this.chatService = new ChatServiceImpl(this);
+        this.messageHandler = new MessageHandler(chatService, this);
+        LOGGER.info("Chat service and message handler ready to work");
     }
 
     @Override
@@ -73,20 +82,14 @@ public class ChatController implements Initializable, WhatTheMessage {
         ChatHistory history = new ChatHistory();
         Platform.runLater(() -> {
             ChatMessage message = ChatMessage.fromJson(json);
-            System.out.println("Message received");
+            LOGGER.info("Message received");
             switch (message.getMessageType()) {
                 case PRIVATE:
                 case PUBLIC:
                     appendTextToChatArea(message);
                     break;
                 case AUTH_CONFIRM:
-                    authPanel.setVisible(false);
-                    chatPanel.setVisible(true);
-                    this.currentName = message.getBody();
-                    AppClient.stage1.setTitle(currentName);
-                    history.appendChatHistoryToChatArea(this.currentName, chatHistoryList, chatBox);
-                    chatHistoryList.clear();
-                    scrollPaneChat.vvalueProperty().bind(chatBox.heightProperty());
+                    auth_confirm(history, message);
                     break;
                 case CLIENT_LIST:
                     refreshOnlineUserList(message);
@@ -95,24 +98,42 @@ public class ChatController implements Initializable, WhatTheMessage {
                     showError(message);
                     break;
                 case REG_CONFIRM:
+                    backOnChatPanel();
+                    LOGGER.info("Registration completed");
+                    break;
                 case PASSWORD_CONFIRM:
                     backOnAuthPanel();
+                    LOGGER.info("Change pass completed");
                     break;
                 case CHANGE_USERNAME_CONFIRM:
-                    backOnChatPanel();
-
-                    File oldName = new File(this.currentName + ".txt");
-                    this.currentName = message.getUsername();
-                    File newName = new File(this.currentName + ".txt");
-
-                    if (newName.exists()) {
-                        newName.delete();
-                    }
-                    oldName.renameTo(newName);
-                    AppClient.stage1.setTitle(currentName);
+                    change_username_confirm(message);
                     break;
             }
         });
+    }
+
+    private void change_username_confirm(ChatMessage message) {
+        backOnChatPanel();
+        File oldName = new File(this.currentName + ".txt");
+        this.currentName = message.getUsername();
+        File newName = new File(this.currentName + ".txt");
+        if (newName.exists()) {
+            newName.delete();
+        }
+        oldName.renameTo(newName);
+        stage.setTitle(currentName);
+        LOGGER.info("Change username completed");
+    }
+
+    private void auth_confirm(ChatHistory history, ChatMessage message) {
+        authPanel.setVisible(false);
+        chatPanel.setVisible(true);
+        this.currentName = message.getBody();
+        stage.setTitle(currentName);
+        history.appendChatHistoryToChatArea(this.currentName, chatHistoryList, chatBox);
+        chatHistoryList.clear();
+        scrollPaneChat.vvalueProperty().bind(chatBox.heightProperty());
+        LOGGER.info("Authentication complete");
     }
 
     private void refreshOnlineUserList(ChatMessage message) {
@@ -139,20 +160,20 @@ public class ChatController implements Initializable, WhatTheMessage {
         if (message.getFrom().equals(currentName)) {
             chatHistoryList.get(index).setAlignment(Pos.TOP_RIGHT);
             chatHistoryList.get(index).setStyle("-fx-background-color:#26c7ba;");
-        }else if (message.getMessageType().equals(MessageType.PRIVATE)){
+        } else if (message.getMessageType().equals(MessageType.PRIVATE)) {
             chatHistoryList.get(index).setStyle("-fx-background-color:#ffcd54;");
         } else {
             chatHistoryList.get(index).setAlignment(Pos.TOP_LEFT);
             chatHistoryList.get(index).setStyle("-fx-background-color:#e1e73d;");
         }
-        chatHistoryList.get(index).setPrefWidth(598);
+        chatHistoryList.get(index).setPrefWidth(Double.parseDouble(PropClass.properties("widthLabel")));
         chatHistoryList.get(index).setWrapText(true);
 
         chatBox.getChildren().add(chatHistoryList.get(index));
         scrollPaneChat.vvalueProperty().bind(chatBox.heightProperty());
         index++;
 
-        chatHistory.saveChatHistory(chatHistoryList, this.currentName, message);
+        CHAT_HISTORY.saveChatHistory(chatHistoryList, this.currentName, message);
     }
 
     public void exit(ActionEvent actionEvent) {
@@ -165,33 +186,20 @@ public class ChatController implements Initializable, WhatTheMessage {
             inputField.clear();
             return;
         }
-        ChatMessage message = new ChatMessage();
-        if (onlineUsers.getSelectionModel().getSelectedItem().equals("PUBLIC")) {
-            message.setMessageType(MessageType.PUBLIC);
-        } else {
-            message.setMessageType(MessageType.PRIVATE);
-            message.setTo((String) onlineUsers.getSelectionModel().getSelectedItem());
-        }
-        message.setBody(text);
-        message.setFrom(this.currentName);
-
-        chatService.send(message.toJson());
+        messageHandler.sendMessage(text);
+        LOGGER.info("Message send");
         inputField.clear();
     }
 
+
     public void sendAuth(ActionEvent actionEvent) {
         if (!chatService.isConnected()) chatService.connect();
+
         String login = loginField.getText();
         String password = passwordField.getText();
 
-        if (login.isEmpty() || password.isEmpty()) return;
-
-        ChatMessage chatMessage = new ChatMessage();
-        chatMessage.setLogin(login);
-        chatMessage.setPassword(password);
-        chatMessage.setMessageType(MessageType.SEND_AUTH);
-
-        chatService.send(chatMessage.toJson());
+        messageHandler.sendAuth(login, password);
+        LOGGER.info("Authentication data send");
     }
 
     public void regUsers(ActionEvent actionEvent) {
@@ -202,22 +210,8 @@ public class ChatController implements Initializable, WhatTheMessage {
         String password = passwordRegistration.getText();
         String passwordRepeat = passwordRegistration1.getText();
 
-        ChatMessage message = new ChatMessage();
-        if (username.trim().isEmpty() || login.trim().isEmpty() || password.trim().isEmpty() || passwordRepeat.trim().isEmpty()) {
-            message.setMessageType(MessageType.ERROR);
-            message.setBody("Something field is empty, try again");
-            showError(message);
-            System.out.println("Something field is empty, try again");
-            return;
-        }
-
-        message.setMessageType(MessageType.REGISTRATION);
-        message.setLogin(login);
-        message.setPassword(password);
-        message.setPasswordRepeat(passwordRepeat);
-        message.setUsername(username);
-
-        chatService.send(message.toJson());
+        messageHandler.regUsers(username, login, password, passwordRepeat);
+        LOGGER.info("Registration data send");
     }
 
     public void changePass(ActionEvent actionEvent) {
@@ -228,33 +222,8 @@ public class ChatController implements Initializable, WhatTheMessage {
         String newPassword = newPasswordChangePass.getText();
         String newPassword1 = newPasswordChangePass1.getText();
 
-        ChatMessage message = new ChatMessage();
-        message.setMessageType(MessageType.CHANGE_PASSWORD);
-        message.setLogin(login);
-        message.setBody(oldPassword);
-        message.setPassword(newPassword);
-        message.setPasswordRepeat(newPassword1);
-
-        chatService.send(message.toJson());
-    }
-
-    public void showError(Exception e) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Something went wrong!");
-        alert.setHeaderText(e.getMessage());
-
-        VBox dialog = new VBox();
-        Label label = new Label("Trace:");
-        TextArea textArea = new TextArea();
-
-        StringBuilder builder = new StringBuilder();
-        for (StackTraceElement el : e.getStackTrace()) {
-            builder.append(el).append(System.lineSeparator());
-        }
-        textArea.setText(builder.toString());
-        dialog.getChildren().addAll(label, textArea);
-        alert.getDialogPane().setContent(dialog);
-        alert.showAndWait();
+        messageHandler.changePass(login, oldPassword, newPassword, newPassword1);
+        LOGGER.info("User start to change pass");
     }
 
     public void showError(ChatMessage msg) {
@@ -277,20 +246,11 @@ public class ChatController implements Initializable, WhatTheMessage {
         String password = passwordChangeUsername.getText();
         String login = loginChangeUsername.getText();
 
-        ChatMessage message = new ChatMessage();
-        if (username.equals(currentName)) {
-            message.setMessageType(MessageType.ERROR);
-            message.setBody("You used this username");
-            showError(message);
-            return;
-        }
-        message.setMessageType(MessageType.CHANGE_USERNAME);
-        message.setLogin(login);
-        message.setUsername(username);
-        message.setPassword(password);
-        message.setBody(this.currentName);
-        chatService.send(message.toJson());
+        messageHandler.changeUsername(username, password, login);
+        LOGGER.info("User start to change username");
     }
+
+
 
     public void changeUsernameMenuBar(ActionEvent actionEvent) {
         changeNamePanel.setVisible(true);
@@ -327,4 +287,15 @@ public class ChatController implements Initializable, WhatTheMessage {
         chatPanel.setVisible(true);
     }
 
+    public String getCurrentName() {
+        return currentName;
+    }
+
+    public ListView getOnlineUsers() {
+        return onlineUsers;
+    }
+
+    public static void setStage(Stage stage) {
+        ChatController.stage = stage;
+    }
 }

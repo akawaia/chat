@@ -1,9 +1,11 @@
 package Chat.Server;
 
 import Chat.AuthServices.AuthService;
+import Chat.AuthServices.DataBase;
 import Chat.AuthServices.DataBaseAuthService;
 import Chat.Common.ChatMessage;
 import Chat.Common.MessageType;
+import Chat.Common.PropClass;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Logger;
 
@@ -16,7 +18,6 @@ import java.util.List;
 
 public class ChatServer {
 
-    private static final int PORT = 3048;
     private final List<ClientHandler> onlineUsersList;
     private final AuthService authService;
     private static final Logger LOGGER = (Logger) LogManager.getLogger(ChatServer.class);
@@ -29,7 +30,7 @@ public class ChatServer {
 
     public void startChatServer() {
 
-        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+        try (ServerSocket serverSocket = new ServerSocket(Integer.parseInt(PropClass.properties("port")))) {
             LOGGER.info("Server started");
             while (true) {
                 Socket socket = serverSocket.accept();

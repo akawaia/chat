@@ -28,9 +28,7 @@ public class ClientHandler {
     }
 
     public void startHandler() {
-
-        ExecutorService executorService = Executors.newCachedThreadPool();
-        executorService.execute(() -> {
+        new Thread(()->{
             try {
                 Thread thread = closeResourcesIfNotLogin();
                 thread.start();
@@ -40,7 +38,7 @@ public class ClientHandler {
             } finally {
                 closeHandler();
             }
-        });
+        }).start();
     }
 
     public void readMessage(Thread thread) throws IOException {

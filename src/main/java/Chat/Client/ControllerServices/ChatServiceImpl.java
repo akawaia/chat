@@ -9,16 +9,12 @@ import org.apache.logging.log4j.core.Logger;
 import java.io.IOException;
 
 public class ChatServiceImpl implements ChatService {
-    private final String host;
-    private final int port;
     private final WhatTheMessage whatTheMessage;
     private Network network;
     private static final Logger LOGGER = (Logger) LogManager.getLogger(ChatServiceImpl.class);
 
 
-    public ChatServiceImpl(String host, int port, WhatTheMessage whatTheMessage) {
-        this.host = host;
-        this.port = port;
+    public ChatServiceImpl(WhatTheMessage whatTheMessage) {
         this.whatTheMessage = whatTheMessage;
     }
 
@@ -35,7 +31,7 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public void connect() {
         try {
-            this.network = new Network(host,port,this);
+            this.network = new Network(this);
             network.readMessage();
         } catch (IOException e) {
             LOGGER.error(e.getStackTrace());
@@ -45,7 +41,5 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public boolean isConnected() {
         return this.network != null;
-
-
     }
 }
